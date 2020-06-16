@@ -52,6 +52,10 @@ module ImpressionistController
     # creates a statment hash that contains default values for creating an impression via an AR relation.
     def associative_create_statement(query_params={})
       filter = ActionDispatch::Http::ParameterFilter.new(Rails.application.config.filter_parameters)
+      params_to_save = filter.filter(params_hash)
+      unless request.get?
+        params_to_save = shorten_hash(params_to_save)
+      end
       query_params.reverse_merge!(
         :controller_name => controller_name,
         :action_name => action_name,
@@ -60,11 +64,22 @@ module ImpressionistController
         :session_hash => session_hash,
         :ip_address => request.remote_ip,
         :referrer => request.referer,
-        :params => filter.filter(params_hash)
+        :params => params_to_save
         )
     end
 
     private
+
+    def shorten_hash(hash)
+      hash.each do |key, value|
+        if value.is_a? String
+          hash[key] = value.gsub(/^(.{50,}?).*$/m,'\1...')
+        elsif value.is_a? Hash
+          hash[key] = shorten_hash(value)
+        end
+      end
+      hash
+    end
 
     def bypass
       Impressionist::Bots.bot?(request.user_agent)
